@@ -1,0 +1,17 @@
+#python specific
+*.pyc
+__pycache__
+.ipynb_checkpoints
+
+#emacs specific
+\#*\#
+
+## generic files to ignore
+*~
+*.lock
+*.DS_Store
+*.swp
+*.log
+*.out
+
+# Project specific
