@@ -75,7 +75,8 @@ class SetLSH:
         return [c if index else self._sets[c] for c in candidates]
 
     def query(self, s, metric=None, index=False):
-        distance_to = lambda x: (metric or jaccard)(x, s)
+        distance_to = lambda x: (metric or jaccard)(self._sets[x]
+                                                    if index else x, s)
         candidates = self.get_candidates(s, index=index)
         if candidates == []:
             return
@@ -88,7 +89,8 @@ if __name__ == '__main__':
     s.insert({4, 5, 6, 7})
     s.insert({6, 7, 8, 9})
     s.insert({2, 4, 6, 8})
-    print s.rowhashes
-    print s.rowhashes.values()
+    print s._rowhashes
+    print s._rowhashes.values()
     print s.get_candidates({2, 4, 5})
-    print s.query({2, 4, 5}, jaccard)
+    print s.query({2, 4, 5})
+    print s.query({2, 4, 5}, index=True)
