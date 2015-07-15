@@ -33,50 +33,50 @@ class SetLSH:
         self.k = k
 
         # Increments with each insertion
-        self.item_id = 0
+        self._item_id = 0
 
-        # Default to default_gen for minhashing
-        self.minhash = make_minhash(hash_family(hashgen or default_gen, b * k))
+        # Default to default_gen for minhashing, can replace with custom hash
+        # function suited to data. Collisions will affect accuracy.
+        self._minhash = make_minhash(hash_family(hashgen or default_gen, b * k))
 
         # Default to crc32 for hashing blocks, we want to avoid collisions here
-        # as much as possible
-        self.blockhash = blockhash or binascii.crc32
+        # as much as possible yet still be fast, to improve lookup times.
+        self._blockhash = blockhash or binascii.crc32
 
         # Dictionary where we collect candidates for Jaccard similarity
-        self.rowhashes = {}
+        self._rowhashes = {}
 
         # We store the actual inserted sets here
-        self.sets = []
+        self._sets = []
 
     def _get_digests(self, s):
         assert type(s) == set, 'Can only query with a set, not {}!'.format(type(s))
-        minhashes = self.minhash(s)
+        minhashes = self._minhash(s)
         b, k = self.b, self.k
         digests = []
 
         for i in range(b):
             str_digest = ' '.join(str(minhashes[k * i + j]) for j in range(k))
-            digests.append((i, self.blockhash(str_digest)))
+            digests.append((i, self._blockhash(str_digest)))
         return digests
 
     def insert(self, s):
         assert type(s) == set, 'Can only insert a set, not {}!'.format(type(s))
-
-        self.sets.append(s)
+        self._sets.append(s)
         for digest in self._get_digests(s):
-            self.rowhashes.setdefault(digest, []).append(self.item_id)
-        self.item_id += 1
+            self._rowhashes.setdefault(digest, []).append(self._item_id)
+        self._item_id += 1
 
-    def get_candidates(self, s):
+    def get_candidates(self, s, index=False):
         candidates = set()
         for digest in self._get_digests(s):
-            for set_index in self.rowhashes.get(digest, []):
+            for set_index in self._rowhashes.get(digest, []):
                 candidates.add(set_index)
-        return [self.sets[c] for c in candidates]
+        return [c if index else self._sets[c] for c in candidates]
 
-    def query(self, s, metric=None):
+    def query(self, s, metric=None, index=False):
         distance_to = lambda x: (metric or jaccard)(x, s)
-        candidates = self.get_candidates(s)
+        candidates = self.get_candidates(s, index=index)
         if candidates == []:
             return
         best = max(candidates, key=distance_to)
