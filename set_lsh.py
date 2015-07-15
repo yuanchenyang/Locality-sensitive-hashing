@@ -49,7 +49,7 @@ class SetLSH:
         self.sets = []
 
     def _get_digests(self, s):
-        assert type(s) == set, 'Can only query with a set!'
+        assert type(s) == set, 'Can only query with a set, not {}!'.format(type(s))
         minhashes = self.minhash(s)
         b, k = self.b, self.k
         digests = []
@@ -60,7 +60,7 @@ class SetLSH:
         return digests
 
     def insert(self, s):
-        assert type(s) == set, 'Can only insert a set!'
+        assert type(s) == set, 'Can only insert a set, not {}!'.format(type(s))
 
         self.sets.append(s)
         for digest in self._get_digests(s):
@@ -75,11 +75,12 @@ class SetLSH:
         return [self.sets[c] for c in candidates]
 
     def query(self, s, metric=None):
-        metric = metric or jaccard
+        distance_to = lambda x: (metric or jaccard)(x, s)
         candidates = self.get_candidates(s)
         if candidates == []:
             return
-        return max(candidates, key=lambda x: metric(x, s))
+        best = max(candidates, key=distance_to)
+        return best, distance_to(best)
 
 if __name__ == '__main__':
     s = SetLSH(5, 2)
