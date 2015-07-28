@@ -8,7 +8,7 @@ from collections import defaultdict
 def make_minhash(hash_family):
     '''Takes in a sequence of hash functions HASH_FAMILY, and returns a function
     that returns the minhash of its input for every element in HASH_FAMILY'''
-    return lambda s: [min(hf(x) for x in s) for hf in hash_family]
+    return lambda s: [min([hf(x) for x in s]) for hf in hash_family]
 
 def hash_family(hash_gen, n):
     '''Creates a random family of hashes'''
