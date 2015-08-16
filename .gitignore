@@ -15,3 +15,6 @@ __pycache__
 *.out
 
 # Project specific
+/f_brute.json
+/f_patched_cellpath.json
+/compare.json
