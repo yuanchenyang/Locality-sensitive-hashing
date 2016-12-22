@@ -5,6 +5,17 @@ import binascii
 from random import randint
 from collections import defaultdict
 
+class WeightedSet(dict):
+    def normalize(self):
+        total = float(sum(self.values()))
+        for key in self:
+            self[key] /= total
+
+def weighted_jaccard(A, B):
+    assert type(A) == WeightedSet and type(B) == WeightedSet,\
+        'Inputs must be WeightedSets!'
+    return
+
 def make_minhash(hash_family):
     '''Takes in a sequence of hash functions HASH_FAMILY, and returns a function
     that returns the minhash of its input for every element in HASH_FAMILY'''
@@ -24,6 +35,7 @@ def default_gen():
 def jaccard(A, B):
     assert type(A) == set and type(B) == set, 'Inputs must be sets!'
     return len(A.intersection(B)) / float(len(A.union(B)))
+
 
 class SetLSH:
     def __init__(self, b, k, hashgen=None, blockhash=None):
@@ -79,7 +91,7 @@ class SetLSH:
                                                     if index else x, s)
         candidates = self.get_candidates(s, index=index)
         if candidates == []:
-            return
+            return set(), 0
         best = max(candidates, key=distance_to)
         return best, distance_to(best)
 
