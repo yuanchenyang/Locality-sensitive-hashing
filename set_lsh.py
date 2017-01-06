@@ -5,6 +5,9 @@ import binascii
 from random import randint
 from collections import defaultdict
 
+import numpy as np
+
+
 class WeightedSet(dict):
     def normalize(self):
         total = float(sum(self.values()))
@@ -14,7 +17,52 @@ class WeightedSet(dict):
 def weighted_jaccard(A, B):
     assert type(A) == WeightedSet and type(B) == WeightedSet,\
         'Inputs must be WeightedSets!'
-    return
+    return sum([min(A[key], B[key]) for key in A.keys()]) / \
+           sum([max(A[key], B[key]) for key in A.keys()])
+
+
+def make_weightedminhash(hash_family):
+    """
+    Takes in a sequence of hash functions hash_family, and returns a function that
+    returns the weightedminhash of its input for every element in hash_family.
+
+    Algorithm and notation detailed in:
+    http://ieeexplore.ieee.org/xpls/abs_all.jsp?arnumber=5693978
+    :return:
+    """
+    def h(hf, s, tol=1e-10):
+        # FIXME use of s.values() is awkward. Re-implement as list instead of dict?
+        # Use (np.inf, np.inf) as default large values where x <= 0
+        hfs = zip(*[hf(x) if np.abs(x) > tol else (np.inf, np.inf) for x in s.values()])
+        argmin_a = np.argmin(hfs[1])
+        min_t = hfs[0][argmin_a]
+        return argmin_a, min_t
+
+    return lambda s: [h(hf, s) for hf in hash_family]
+
+
+def weightedminhash_gen():
+    """
+    Returns a random consistent hash function for the weighted min hash.
+
+    Algorithm and notation detailed in:
+    http://ieeexplore.ieee.org/xpls/abs_all.jsp?arnumber=5693978
+    :return:
+    """
+    # if k != 1:
+    #     raise NotImplementedError, "k > 1 digit hashes, not yet implemented"
+
+    r = np.random.gamma(2, 1)
+    c = np.random.gamma(2, 1)
+    beta = np.random.uniform(0, 1)
+
+    def h(x):
+        t = np.floor(np.log(x)/r + beta)
+        a = c / (np.exp(r*(t-beta) + r))
+        return t,a
+
+    return h
+
 
 def make_minhash(hash_family):
     '''Takes in a sequence of hash functions HASH_FAMILY, and returns a function
@@ -39,6 +87,8 @@ def jaccard(A, B):
 
 class SetLSH:
     def __init__(self, b, k, hashgen=None, blockhash=None):
+        self._hash_type = set
+
         # Constants for LSH, see ipython notebook
         # We have b blocks of k hashes each
         self.b = b
@@ -62,7 +112,7 @@ class SetLSH:
         self._sets = []
 
     def _get_digests(self, s):
-        assert type(s) == set, 'Can only query with a set, not {}!'.format(type(s))
+        assert type(s) == self._hash_type, 'Can only query with a set, not {}!'.format(type(s))
         minhashes = self._minhash(s)
         b, k = self.b, self.k
         digests = []
@@ -73,7 +123,7 @@ class SetLSH:
         return digests
 
     def insert(self, s):
-        assert type(s) == set, 'Can only insert a set, not {}!'.format(type(s))
+        assert type(s) == self._hash_type, 'Can only insert a set, not {}!'.format(type(s))
         self._sets.append(s)
         for digest in self._get_digests(s):
             self._rowhashes.setdefault(digest, []).append(self._item_id)
@@ -95,7 +145,29 @@ class SetLSH:
         best = max(candidates, key=distance_to)
         return best, distance_to(best)
 
+
+class WeightedSetLSH(SetLSH):
+    def __init__(self, b, k, hashgen=None, blockhash=None):
+        SetLSH.__init__(self, b, k, hashgen=hashgen, blockhash=blockhash)
+        self._hash_type = WeightedSet
+
+        self._minhash = make_weightedminhash(hash_family(hashgen or
+                                             weightedminhash_gen, b))
+
+    def _get_digests(self, s):
+        assert type(s) == self._hash_type, 'Can only query with a WeightedSet, not {}!'.format(type(s))
+        minhashes = self._minhash(s)
+        b, k = self.b, self.k
+        digests = []
+
+        for i in range(b):
+            str_digest = str(minhashes[i])
+            digests.append((i, self._blockhash(str_digest)))
+        return digests
+
+
 if __name__ == '__main__':
+    print "Set LSH example"
     s = SetLSH(5, 2)
     s.insert({1, 2, 3, 4})
     s.insert({4, 5, 6, 7})
@@ -106,3 +178,20 @@ if __name__ == '__main__':
     print s.get_candidates({2, 4, 5})
     print s.query({2, 4, 5})
     print s.query({2, 4, 5}, index=True)
+
+    print
+    print "Weighted Set LSH example"
+    s = WeightedSetLSH(5, 1)
+    s.insert(WeightedSet({0: 0.0, 1: 1.0, 2: 0.0, 3: 0.0, 4: 0.0}))
+    s.insert(WeightedSet({0: 0.0, 1: 0.0, 2: 1.0, 3: 0.0, 4: 0.0}))
+    s.insert(WeightedSet({0: 0.0, 1: 0.0, 2: 0.0, 3: 1.0, 4: 0.0}))
+    s.insert(WeightedSet({0: 0.0, 1: 0.0, 2: 0.0, 3: 0.0, 4: 1.0}))
+    s.insert(WeightedSet({0: 0.2, 1: 0.2, 2: 0.2, 3: 0.2, 4: 0.2}))
+    s.insert(WeightedSet({0: 0.1, 1: 0.3, 2: 0.2, 3: 0.2, 4: 0.2}))
+    s.insert(WeightedSet({0: 0.4, 1: 0.3, 2: 0.2, 3: 0.2, 4: 0.0}))
+    s.insert(WeightedSet({0: 0.4, 1: 0.3, 2: 0.2, 3: 0.19999, 4: 0.00001}))
+    print s._rowhashes
+    print s._rowhashes.values()
+    query = WeightedSet({0: 0.0, 1: 0.8, 2: 0.0, 3: 0.0, 4: 0.2})
+    print s.get_candidates(query)
+    print s.query(query, metric=weighted_jaccard)
